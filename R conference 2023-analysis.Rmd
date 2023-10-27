@@ -1,0 +1,479 @@
+---
+title: "Comparative Cox Analysis-R conference 2023"
+author: "Che Muhammad Nur Hidayat Che Nawi"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: rmdformats::material
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+# Prepare environment and load data
+
+library(gtsummary)
+library(tidyverse)
+
+stroke <- read.csv("stroke.csv")
+str(stroke)
+
+str_mod <- read.csv("stroke.csv")
+str(str_mod)
+```
+
+```{r, include=FALSE}
+# Data wrangling
+
+## For descriptive, status can be factor
+
+# change numeric to factor
+stroke$age = as.numeric(stroke$age) 
+stroke$dur_days = as.numeric(stroke$dur_days)
+stroke$dur_month = as.numeric(stroke$dur_month)
+stroke$status = as.numeric(stroke$status)
+stroke$gcs_reduct = as.numeric(stroke$gcs_reduct)
+
+
+stroke <- stroke %>% mutate_if(is.integer, ~as.factor(.)) %>% 
+  select(age, dur_days, dur_month, status, gcs_reduct,everything())
+
+# Change factor labels of the levels====
+
+stroke$ss <- factor(stroke$ss, labels = c("HRPZ", "HSNZ", "HSP", "HUSM", "PPUKM"))
+stroke$sex <- factor(stroke$sex, labels = c("Female", "Male"))
+stroke$ethnicity <- factor(stroke$ethnicity, labels = c("Malay", "Chinese", "Indian", "Others"))
+stroke$married <- factor(stroke$married, labels = c("Married", "Single", "Others"))
+stroke$dm <- factor(stroke$dm, labels = c("No", "Yes"))
+stroke$hpt <- factor(stroke$hpt, labels = c("No", "Yes"))
+stroke$ckd <- factor(stroke$ckd, labels = c("No", "Yes"))
+stroke$af <- factor(stroke$af, labels = c("No", "Yes"))
+stroke$hf_ihd <- factor(stroke$hf_ihd, labels = c("No", "Yes"))
+stroke$lipid <- factor(stroke$lipid, labels = c("No", "Yes"))
+stroke$smoke <- factor(stroke$smoke, labels = c("No", "Yes"))
+stroke$who <- factor(stroke$who, labels = c("Ischemic stroke", "Non ischemic stroke"))
+stroke$nihss <- factor(stroke$nihss, labels = c("No stroke symptoms (0)", 
+                                                        "Minor stroke (1-4)",
+                                                        "Moderate stroke (5-15)",
+                                                        "Moderate to severe stroke (16-20)",
+                                                        "Severe stroke (21-42)"))
+stroke$iv_thrombolysis <- factor(stroke$iv_thrombolysis, labels = c("No", "Yes"))
+stroke$iv_thrombectomy <- factor(stroke$iv_thrombectomy, labels = c("No", "Yes"))
+stroke$mrs <- factor(stroke$mrs, labels = c("mRS score 0", "mRS score 1",
+                                                    "mRS score 2", "mRS score 3",
+                                                    "mRS score 4", "mRS score 5",
+                                                    "mRS score 6"))
+stroke$status <- factor(stroke$status, labels = c("Censored", "Death"))
+glimpse(stroke)
+```
+
+
+```{r, include=FALSE}
+# Data wrangling
+
+## For survival analysis, status cannot be factor
+
+# change numeric to factor
+str_mod$age = as.numeric(str_mod$age) 
+str_mod$dur_days = as.numeric(str_mod$dur_days)
+str_mod$dur_month = as.numeric(str_mod$dur_month)
+str_mod$status = as.numeric(str_mod$status)
+str_mod$gcs_reduct = as.numeric(str_mod$gcs_reduct)
+
+
+str_mod <- str_mod %>% mutate_if(is.integer, ~as.factor(.)) %>% 
+  select(age, dur_days, dur_month, status, gcs_reduct,everything())
+
+# Change factor labels of the levels====
+
+str_mod$ss <- factor(str_mod$ss, labels = c("HRPZ", "HSNZ", "HSP", "HUSM", "PPUKM"))
+str_mod$sex <- factor(str_mod$sex, labels = c("Female", "Male"))
+str_mod$ethnicity <- factor(str_mod$ethnicity, labels = c("Malay", "Chinese", "Indian", "Others"))
+str_mod$married <- factor(str_mod$married, labels = c("Married", "Single", "Others"))
+str_mod$dm <- factor(str_mod$dm, labels = c("No", "Yes"))
+str_mod$hpt <- factor(str_mod$hpt, labels = c("No", "Yes"))
+str_mod$ckd <- factor(str_mod$ckd, labels = c("No", "Yes"))
+str_mod$af <- factor(str_mod$af, labels = c("No", "Yes"))
+str_mod$hf_ihd <- factor(str_mod$hf_ihd, labels = c("No", "Yes"))
+str_mod$lipid <- factor(str_mod$lipid, labels = c("No", "Yes"))
+str_mod$smoke <- factor(str_mod$smoke, labels = c("No", "Yes"))
+str_mod$who <- factor(str_mod$who, labels = c("Ischemic stroke", "Non ischemic stroke"))
+str_mod$nihss <- factor(str_mod$nihss, labels = c("No stroke symptoms (0)", 
+                                                        "Minor stroke (1-4)",
+                                                        "Moderate stroke (5-15)",
+                                                        "Moderate to severe stroke (16-20)",
+                                                        "Severe stroke (21-42)"))
+str_mod$iv_thrombolysis <- factor(str_mod$iv_thrombolysis, labels = c("No", "Yes"))
+str_mod$iv_thrombectomy <- factor(str_mod$iv_thrombectomy, labels = c("No", "Yes"))
+str_mod$mrs <- factor(str_mod$mrs, labels = c("mRS score 0", "mRS score 1",
+                                                    "mRS score 2", "mRS score 3",
+                                                    "mRS score 4", "mRS score 5",
+                                                    "mRS score 6"))
+
+glimpse(str_mod)
+```
+
+# Participant characteristics
+
+- We describe data as mean (SD) and frequency (%) when appropriate
+- To make comparisons, we employed statistical tests including the Wilcoxon rank sum test, Pearson's Chi-squared test, and Fisher's exact test.
+
+```{r, echo=FALSE}
+# Descriptive analysis by gt summary
+
+## By status
+
+library(gtsummary)
+
+# Choose and rearrange variables
+stroke2 <- stroke %>% gtsummary::select(age, ss, sex, ethnicity, married, dm, hpt, ckd, af, hf_ihd, lipid, smoke, who, gcs_reduct, nihss, mrs, iv_thrombolysis, iv_thrombectomy, dur_month, status)
+
+desc <- tbl_summary(stroke2,
+                    by = status,
+                    statistic = list(all_continuous() ~ "{mean} ({sd})",                                                               all_categorical() ~ "{n} ({p}%)"),
+                    digits = list(all_continuous() ~ 2,                                                                             all_categorical() ~ 1),
+                    label = list(age ~ "Age", 
+                                 ss ~ "Study sites",
+                                 sex ~ "Gender",
+                                 ethnicity ~ "Ethnicity",
+                                 married ~ "Marital status",
+                                 dm ~ "Diabetes mellitus, Yes",
+                                 hpt ~ "Hypertension, Yes",
+                                 ckd ~ "Chronic Kidney Disease, Yes",
+                                 af ~ "Atrial fibrillation, Yes",
+                                 hf_ihd ~ "Heart disease, Yes",
+                                 lipid ~ "Hyperlipidemia, Yes",
+                                 smoke ~ "Smoking status, Yes",
+                                 who ~ "Diagnosis (WHO)",
+                                 gcs_reduct ~ "GCS reduction",
+                                 nihss ~ "NIH stroke scale (NIHSS)",
+                                 mrs ~ "Modified rankin scale (mRS)",
+                                 iv_thrombolysis ~ "Intervention (Thrombolysis), Yes",
+                                 iv_thrombectomy ~ "Intervention (Thrombectomy), Yes",
+                                 dur_month ~ "Time interval in month"))
+desc %>%
+  add_p %>% 
+  add_overall() %>% 
+  bold_labels() %>% 
+  italicize_levels() 
+```
+
+Table 1: Basic characteristics of the included stroke patients
+
+- The mean (SD) age at the time of diagnosis was 63.15 (13.09) years. 
+- The distribution of patients across study centers was fairly even. 
+- The majority of patients were male, comprising 552 individuals (58.1%), and of Malay ethnicity, totaling 776 patients (81.7%). 
+- Ischemic stroke was the most prevalent type, accounting for 870 cases (91.6%). 
+- Less than 10% of the patients received intravascular intervention, with 80 patients (8.4%) undergoing thrombolysis and 61 patients (6.4%) receiving thrombectomy.
+
+# 3-months, 12-months and 36-months stroke survival rate among stroke patients 
+
+Now we will describe the survival based on short term (3month), intermediate term (1year) and long term (3years) survival post stroke. 
+
+```{r, include=FALSE}
+## Load Library
+library(survival)
+library(tidyverse)
+library(survminer)
+library(scales)
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+fit1 <- survfit(Surv(dur_month, status)~ 1, str_mod)
+fit2 <- survfit(Surv(dur_month, status)~ sex, str_mod)
+fit3 <- survfit(Surv(dur_month, status)~ ethnicity, str_mod)
+fit4 <- survfit(Surv(dur_month, status)~ who, str_mod)
+
+
+life_table <- list(fit1, fit2, fit3, fit4) %>% 
+  tbl_survfit(times= c(1, 12, 36)) %>% 
+  modify_header(update = list(
+    stat_1 ~ "**3-month survival (95% CI)**",
+    stat_2 ~ "**1-year survival (95% CI)**",
+    stat_3 ~ "**3-years survival (95% CI)**"
+  )) %>% add_n() %>% add_p() %>% 
+  bold_labels() %>% 
+  italicize_levels()
+
+life_table
+```
+
+Table 3: Overal, gender, ethnicity, and stroke diagnosisl survival rate for stroke patients at 3-month, 12-month, and 36-month
+
+- The proportion of stroke patients alive three years after diagnosis was 63% (95% CI: 58%, 68%) for the overall cohort. 
+- When stratified by gender, males exhibited a higher survival rate at 69% (95% CI: 64%, 75%). 
+- Similarly, among different ethnic groups, Indian patients displayed the highest survival rate at 86% (95% CI: 76%, 97%). 
+- Additionally, patients diagnosed with ischemic stroke had a survival rate of 63% (95% CI: 59%, 68%), surpassing their counterparts. 
+
+# Prediction of mortality among stroke patients
+
+## The comparison between COX-GCS, COX-NIHSS, and COX-MRS models in predicting stroke mortality
+
+- We perform comparative analysis to evaluate the prognostic value of each stroke severity scales by using confirmatory analysis. 
+- Ininitally, we fit an unadjusted cox model for each stroke severity scale, i.e., the GCS, NIHSS, and mRS. 
+- Next, we fit an adjusted cox model for sociodemographic characteristics, co morbidities and intervention
+
+```{r, include=FALSE}
+library(forcats)
+#ss
+fct_count(str_mod$ss)
+str_mod$ss2 <- fct_collapse(str_mod$ss,
+                               NCR=c("PPUKM", "HSP"),
+                               ECR=c("HRPZ", "HSNZ", "HUSM"))
+str_mod$ss2 <- relevel(str_mod$ss2, ref = "NCR")
+fct_count(str_mod$ss2)
+
+```
+
+
+```{r, include=FALSE}
+## Prepare dataset for GCS, NIHSS and mRS
+
+# Prepare GCS dataset
+
+str_gcs <- str_mod %>% gtsummary::select(age, sex, married, ethnicity, ss2, dm, hpt, ckd, af, hf_ihd, lipid, smoke, who, gcs_reduct, iv_thrombolysis, iv_thrombectomy, dur_month, status)
+
+str_nihss <- str_mod %>% gtsummary::select(age, sex, married, ethnicity, ss2, dm, hpt, ckd, af, hf_ihd, lipid, smoke, who, nihss, iv_thrombolysis, iv_thrombectomy, dur_month, status)
+
+str_mrs <- str_mod %>% gtsummary::select(age, sex, married, ethnicity, ss2, dm, hpt, ckd, af, hf_ihd, lipid, smoke, who, mrs, iv_thrombolysis, iv_thrombectomy, dur_month, status)
+```
+
+```{r, include=FALSE}
+
+## GCS Cox Model
+
+### Unadjusted model
+
+coxgcs_uv <- coxph(Surv(dur_month, status)~ gcs_reduct, str_gcs)%>% 
+  tbl_regression(exponentiate = TRUE, 
+                           label = list(
+                                 gcs_reduct ~ "Glasgow coma scale (GCS) reduction"
+                                 )) 
+
+coxgcs_uv
+```
+
+```{r, include=FALSE}
+### Adjusted model
+
+coxgcs_mv <- coxph(Surv(dur_month, status)~ gcs_reduct+age+sex+married+ethnicity+ss2+dm+hpt+ckd+af+hf_ihd+lipid+smoke+who+iv_thrombolysis+iv_thrombectomy, str_gcs) %>% 
+  tbl_regression(exponentiate = TRUE, 
+                             include = "gcs_reduct",
+                           label = list(
+                                 gcs_reduct ~ "Glasgow coma scale (GCS) reduction")) 
+
+coxgcs_mv
+
+```
+
+```{r, include=FALSE}
+gcs_merge <- tbl_merge(list(coxgcs_uv, coxgcs_mv),
+                       tab_spanner = c("**Unadjusted model**", "**Adjusted model**"))
+gcs_merge
+```
+
+
+```{r, include=FALSE}
+## NIHSS Cox Model
+
+### Unadjusted model
+coxnihss_uv <- coxph(Surv(dur_month, status)~ nihss, str_nihss) %>% 
+  tbl_regression(exponentiate = TRUE, 
+                           label = list(
+                                 nihss ~ "NIH stroke scale (NIHSS)"
+                                 )) 
+coxnihss_uv
+```
+
+
+```{r, include=FALSE}
+### Adjusted model
+coxnihss_mv <- coxph(Surv(dur_month, status)~ nihss+age+sex+married+ethnicity+ss2+dm+hpt+ckd+af+hf_ihd+lipid+smoke+who+iv_thrombolysis+iv_thrombectomy, str_nihss) %>% 
+  tbl_regression(exponentiate = TRUE, 
+                 include = "nihss",
+                           label = list(
+                                 nihss ~ "NIH stroke scale (NIHSS)")) 
+
+coxnihss_mv
+```
+
+```{r, include=FALSE}
+nihss_merge <- tbl_merge(list(coxnihss_uv, coxnihss_mv),
+                       tab_spanner = c("**Unadjusted model**", "**Adjusted model**"))
+nihss_merge
+```
+
+
+```{r, include=FALSE}
+## mRS Cox Model
+
+### Unadjusted model
+coxmrs_uv <- coxph(Surv(dur_month, status)~ mrs, str_mrs) %>% 
+  tbl_regression(exponentiate = TRUE, 
+                           label = list(
+                                 mrs ~ "Modified rankin scale (mRS)"
+                                 )) 
+coxmrs_uv
+```
+
+
+```{r, include=FALSE}
+### Adjusted model
+
+coxmrs_mv <- coxph(Surv(dur_month, status)~ mrs+age+sex+married+ethnicity+ss2+dm+hpt+ckd+af+hf_ihd+lipid+smoke+who+iv_thrombolysis+iv_thrombectomy, str_mrs) %>% 
+  tbl_regression(exponentiate = TRUE, 
+                 include = "mrs",
+                           label = list(
+                                 mrs ~ "Modified rankin scale (mRS)")) 
+
+coxmrs_mv
+```
+
+```{r, include=FALSE}
+mrs_merge <- tbl_merge(list(coxmrs_uv, coxmrs_mv),
+                       tab_spanner = c("**Unadjusted model**", "**Adjusted model**"))
+mrs_merge
+```
+
+## Combine all modell together with tbl_stack
+
+
+```{r, echo=FALSE}
+model_stack <- tbl_stack(list(gcs_merge, nihss_merge, mrs_merge))
+model_stack %>% 
+  bold_labels() %>% 
+  italicize_levels()
+```
+
+- Regarding the Glasgow Coma Scale (GCS), patients diagnosed with one-unit lower GCS exhibited an 8% higher risk of mortality from stroke (HR=1.08; 95% CI: 1.06, 1.11; p<0.001). 
+- An increase in stroke severity based on the NIHSS scale corresponded to a 4.25-fold higher hazard of mortality (95% CI: 2.41, 7.49; p<0.001). 
+- In the case of mRS scores upon discharge, a score of five was associated with an 8.28-fold higher risk of stroke-related mortality (95% CI: 2.61, 26.3; p<0.001). 
+- Notably, these associations remained significant even after adjusting for sociodemographic factors, comorbidities, and interventions
+
+# Evaluation of the model performace
+
+```{r, include=FALSE}
+#NON GT
+
+coxgcs_mv_ngt <- coxph(Surv(dur_month, status)~ gcs_reduct+age+sex+married+ethnicity+ss2+dm+hpt+ckd+af+hf_ihd+lipid+smoke+who+iv_thrombolysis+iv_thrombectomy, str_gcs)
+
+coxnihss_mv_ngt <- coxph(Surv(dur_month, status)~ nihss+age+sex+married+ethnicity+ss2+dm+hpt+ckd+af+hf_ihd+lipid+smoke+who+iv_thrombolysis+iv_thrombectomy, str_nihss)
+
+coxmrs_mv_ngt <- coxph(Surv(dur_month, status)~ mrs+age+sex+married+ethnicity+ss2+dm+hpt+ckd+af+hf_ihd+lipid+smoke+who+iv_thrombolysis+iv_thrombectomy, str_mrs)
+```
+
+
+Now we will evaluate the performance of the model with likelihood based test, C-index and visualization of the fitted model
+
+```{r, include=FALSE}
+## Likelihood based test
+
+### Likelihood ratio test
+library(lmtest)
+lrt_gcs_nihss <- lrtest(coxgcs_mv_ngt, coxnihss_mv_ngt)
+lrt_gcs_mrs <- lrtest(coxgcs_mv_ngt, coxmrs_mv_ngt)
+
+lrt_gcs_nihss
+lrt_gcs_mrs
+```
+
+
+```{r, include=FALSE}
+aic_values <- AIC(coxgcs_mv_ngt, coxnihss_mv_ngt, coxmrs_mv_ngt)
+aic_values
+```
+
+
+```{r, include=FALSE}
+# C-index
+
+ctest <- concordance(coxgcs_mv_ngt, coxnihss_mv_ngt, coxmrs_mv_ngt)
+ctest
+```
+
+
+| Cox Proportional Hazard Model |                                   | Univariable |            |         | Multivariable |            |         | Likelihood ratio test | Akaike Information Criterion |    | Harrell's C-statistic |       |
+|-------------------------------|-----------------------------------|-------------|------------|---------|---------------|------------|---------|-----------------------|------------------------------|----|-----------------------|-------|
+|                               |                                   | **HR**          | **95% CI**     | **p-value** | **HR**            | **95% CI**     | **p-value** | **p-value**               | **AIC**                          | **DF** | **C-index**               | **SE**    |
+| **GCS**                           |                                   | 1.08        | 1.06, 1.11 | <0.001  | 1.25          | 1.20, 1.31 | <0.001  | Reference             | 3285.25                      | 19 | 0.75                  | 0.017 |
+| **NIHSS**                         |                                   |             |            |         |               |            |         | 0.002                 | 3276.82                      | 22 | 0.76                  | 0.015 |
+|                               | *No stroke symptoms (0)*            | Reference   |            |         | Reference     |            |         |                       |                              |    |                       |       |
+|                               | *Minor stroke (1-4)*                | 0.49        | 0.27, 0.88 | 0.017   |      0.50     | 0.27, 0.91 |  0.025  |                       |                              |    |                       |       |
+|                               | *Moderate stroke (5-15)*            | 1.32        | 0.77, 2.27 | 0.3     |      1.24     | 0.70, 2.20 |   0.5   |                       |                              |    |                       |       |
+|                               | *Moderate to severe stroke (16-20)* | 2.26        | 1.27, 4.03 | 0.006   |      3.04     | 1.63, 5.69 |  <0.001 |                       |                              |    |                       |       |
+|                               | *Severe stroke (21-42)*             | 4.25        | 2.41, 7.49 | <0.001  | 3.79          | 2.08, 6.91 | <0.001  |                       |                              |    |                       |       |
+| **mRS**                           |                                   |             |            |         |               |            |         | **<0.001**                | **3200.97**                      | 24 | **0.79**                  | 0.015 |
+|                               | *mRS score 0*                       | Reference   |            |         | Reference     |            |         |                       |                              |    |                       |       |
+|                               | *mRS score 1*                       | 1.01        | 0.29, 3.47 | >0.9    | 0.77          | 0.22, 2.69 | 0.7     |                       |                              |    |                       |       |
+|                               | *mRS score 2*                       | 1.71        | 0.51, 5.70 | 0.4     | 1.28          | 0.38, 4.29 | 0.7     |                       |                              |    |                       |       |
+|                               | *mRS score 3*                       | 2.85        | 0.88, 9.25 | 0.082   | 1.77          | 0.54, 5.81 | 0.3     |                       |                              |    |                       |       |
+|                               | *mRS score 4*                       | 4.20        | 1.32, 13.3 | 0.015   | 2.97          | 0.93, 9.50 | 0.067   |                       |                              |    |                       |       |
+|                               | *mRS score 5*                       | 8.28        | 2.61, 26.3 | <0.001  | 5.46          | 1.69, 17.6 | 0.005   |                       |                              |    |                       |       |
+|                               | *mRS score 6*                       | 14.2        | 4.41, 45.5 | <0.001  | 41.4          | 12.4, 139  | <0.001  |                       |                              |    |                       |       |
+
+Table 4 The Cox Proportional Hazard regression models with likelihood-based tests, Akaike information criterion, and Harrel's C-statistic.
+
+- Regarding the Glasgow Coma Scale (GCS), patients diagnosed with one-unit lower GCS exhibited an 8% higher risk of mortality from stroke (HR=1.08; 95% CI: 1.06, 1.11; p<0.001). 
+- An increase in stroke severity based on the NIHSS scale corresponded to a 4.25-fold higher hazard of mortality (95% CI: 2.41, 7.49; p<0.001). 
+- In the case of mRS scores upon discharge, a score of five was associated with an 8.28-fold higher risk of stroke-related mortality (95% CI: 2.61, 26.3; p<0.001). 
+- Notably, these associations remained significant even after adjusting for sociodemographic factors, comorbidities, and interventions (see Table 4).
+
+
+- To compare the predictive performance of stroke mortality using the three scales collected during diagnosis, we conducted a likelihood-based test, computed the C-index, and generated Kaplan-Meier curves. 
+- The Cox proportional hazard model based on the mRS scale outperformed the models based on the other scales, with a p-value <0.001, lower AIC (Akaike Information Criterion) at 3200.97, and a higher C-index of 0.79, respectively. 
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+## visualize model comparison
+
+# Load the required libraries
+library(survival)
+library(ggplot2)
+
+# Create Kaplan-Meier survival curves for each model with confidence intervals
+surv1 <- survfit(coxgcs_mv_ngt)
+surv2 <- survfit(coxnihss_mv_ngt)
+surv3 <- survfit(coxmrs_mv_ngt)
+
+# Combine the survival data into a data frame
+surv_data <- data.frame(
+  time = surv1$time,
+  surv1 = surv1$surv,
+  surv2 = surv2$surv,
+  surv3 = surv3$surv,
+  upper1 = surv1$upper,
+  lower1 = surv1$lower,
+  upper2 = surv2$upper,
+  lower2 = surv2$lower,
+  upper3 = surv3$upper,
+  lower3 = surv3$lower
+)
+
+# Create the Kaplan-Meier plot using ggplot2
+p <- ggplot(surv_data, aes(x = time)) +
+  geom_step(aes(y = surv1, color = "Cox GCS model", fill = "Cox GCS model"), size = 1) +
+  geom_step(aes(y = surv2, color = "Cox NIHSS model", fill = "Cox NIHSS model"), size = 1) +
+  geom_step(aes(y = surv3, color = "Cox mRS model", fill = "Cox mRS model"), size = 1) +
+  geom_ribbon(aes(ymin = lower1, ymax = upper1, fill = "Cox GCS model"), alpha = 0.2) +
+  geom_ribbon(aes(ymin = lower2, ymax = upper2, fill = "Cox NIHSS model"), alpha = 0.2) +
+  geom_ribbon(aes(ymin = lower3, ymax = upper3, fill = "Cox mRS model"), alpha = 0.2) +
+  scale_color_manual(values = c("Cox GCS model" = "blue", "Cox NIHSS model" = "red", "Cox mRS model" = "green")) +
+  scale_fill_manual(
+    values = c("Cox GCS model" = "blue", "Cox NIHSS model" = "red", "Cox mRS model" = "green"),
+    guide = guide_legend(title = "(95% confidence interval)")
+  ) +
+  labs(
+    title = "",
+    x = "Time (in months)",
+    y = "Survival Probability"
+  ) +
+  theme_minimal() +
+  guides(color = guide_legend(title = "Cox Proportional Hazard Models", override.aes = list(fill = NA)))
+
+p
+
+```
+
+
+- Additionally, the Kaplan-Meier curve for the mRS model displayed a less steep decline in survival as compared to the other models.
+
